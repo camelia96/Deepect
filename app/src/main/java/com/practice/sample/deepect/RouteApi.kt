@@ -41,7 +41,7 @@ class RouteApi(context : Context, startPoint : TMapPoint, endPoint: TMapPoint, e
         try {
             val BASE = "https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1&format=json&appKey=%s&startX=%s&startY=%s&endX=%s&endY=%s&startName=출발점&endName=도착점&reqCoordType=WGS84GEO&resCoordType=WGS84GEO"
 
-            //                URL url = new URL(String.format(BASE, getString(R.string.tmap_api_key), "14129076.637157721", "4517000.1674596295", "14129150.847711671", "4516442.460094549"));
+
             val url = URL(
                 java.lang.String.format(
                     BASE,

@@ -14,6 +14,7 @@ import android.location.LocationManager
 import android.os.Bundle
 import android.util.Log
 import android.view.MenuItem
+import android.view.View
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.ActionBarDrawerToggle
@@ -99,15 +100,46 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
             checkPermission()
 
 
-            btnPath.setOnClickListener {
+            /*btnPath.setOnClickListener {
                 setNavigationMode(true)
             }
-
+*/
             moveToCurrentLocation()
         } catch (e: Exception){
             Log.d("Exception : ", "cant initialize ${e.message}")
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        try {
+            gpsManager.start()
+        } catch (e: Exception) {
+
+        }
+
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try{
+            gpsManager.stop()
+        } catch (e: Exception){
+
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try{
+            gpsManager.stop()
+            timer.cancel()
+        } catch(e : Exception){
+
+        }
+
+    }
+
 
 
     private fun checkPermission() {
@@ -121,6 +153,27 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
     private fun initView() {
         setSupportActionBar(toolbar)
 
+        //setMapIcon()
+        mapView.setSKTMapApiKey(getString(R.string.tmap_api_key))
+        //mapView.setLocationPoint(gps.location.longitude, gps.location.latitude)
+        setSelectionMode(!selectionMode)
+        mapView.setIconVisibility(true)
+        mapView.setCompassMode(false)
+
+        frameMap.addView(mapView)
+
+        mapView.setOnApiKeyListener(object : TMapView.OnApiKeyListenerCallback{
+            override fun SKTMapApikeySucceed() {
+                Log.d("SKTMapApikeySucceed", "ApiSucceed")
+            }
+
+            override fun SKTMapApikeyFailed(errorMsg: String?) {
+                Log.d("SKTMapApikeyFailed " ,errorMsg)
+            }
+        })
+
+        btnPath.setOnClickListener(btnPathClicked)
+
         val toggle = ActionBarDrawerToggle(
             this,
             drawer_layout,
@@ -132,183 +185,18 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
 
         nav_view.setNavigationItemSelectedListener(this)
 
-        setMapIcon()
-        mapView.setSKTMapApiKey("l7xxe5f30ecdf6da43cba53ee7260d1e8675")
-        //mapView.setLocationPoint(gps.location.longitude, gps.location.latitude)
-        frameMap.addView(mapView)
-        setSelectionMode(!selectionMode)
 
-
-        mapView.setOnApiKeyListener(object : TMapView.OnApiKeyListenerCallback{
-            override fun SKTMapApikeySucceed() {
-                Log.d("SKTMapApikeySucceed", "ApiSucceed")
-            }
-
-            override fun SKTMapApikeyFailed(errorMsg: String?) {
-                Log.d("SKTMapApikeyFailed " ,errorMsg)
-            }
-        })
     }
 
     fun setMapIcon() {
         val currentMarker = TMapMarkerItem()
-
-        val bitmap = BitmapFactory.decodeResource(this.resources, R.drawable.poi_here)
-
+        //val bitmap = BitmapFactory.decodeResource(this.resources, R.drawable.poi_here)
+        //mapView.setIcon(bitmap)
         mapView.setZoomLevel(16)
-        mapView.setIcon(bitmap)
         mapView.addMarkerItem("CurrentMarker", currentMarker)
-        mapView.setIconVisibility(true)
 
     }
 
-    private fun setSelectionMode(isSelectionMode : Boolean) {
-        this.selectionMode = isSelectionMode
-
-        if (isSelectionMode) {
-            toolbar.setTitle("도착지를 설정하세요")
-
-            mapView.setOnLongClickListenerCallback(object : TMapView.OnLongClickListenerCallback {
-                override fun onLongPressEvent(
-                    p0: ArrayList<TMapMarkerItem>?,
-                    p1: ArrayList<TMapPOIItem>?,
-                    p2: TMapPoint
-                ) {
-                    val builder = AlertDialog.Builder(this@MainActivity)
-                        .setTitle("안내")
-                        .setMessage("도착지로 설정하시겠습니까?")
-                        .setPositiveButton("예", object : DialogInterface.OnClickListener {
-                            override fun onClick(dialog: DialogInterface?, which: Int) {
-                                setDestination(p2)
-
-                                // turn off selection mode
-                                setSelectionMode(false);
-
-                                getRoute(p2)
-
-                            }
-                        })
-                        .setNegativeButton("아니오", null).show()
-                }
-            })
-        }
-    }
-
-
-    private fun setNavigationMode(isNavigationMode : Boolean){
-        this.navigationMode = isNavigationMode
-        if(isNavigationMode) {
-            try {
-                if (destination == null) {
-                    Toast.makeText(this, "먼저 도착지를 선택하세요.", Toast.LENGTH_SHORT).show()
-                    setNavigationMode(false)
-                    setSelectionMode(true)
-                    return
-                }
-                val mapData = TMapData()
-
-                //이부분 어케할꺼야
-                val currentLocation = Current_Location
-                val startPoint =  TMapPoint(currentLocation!!.latitude, currentLocation.longitude)
-                //
-
-                if(destination != null) {
-                    val endpoint = destination
-                    //getRoute(endpoint!!)
-                    val currentLocation : Location? = gpsManager.getCurrentLocation()
-                    val startPoint = TMapPoint(currentLocation!!.latitude , currentLocation!!.longitude)
-
-                    if(startPoint != null) {
-                        val routeApi = RouteApi(this, startPoint, endpoint!!, object : RouteApi.EventListener {
-                            override fun onApiResult(jsonString : String) {
-                                Toast.makeText(this@MainActivity, "요청성공", Toast.LENGTH_SHORT).show()
-                                try {
-                                    val objects : JSONObject = JSONObject(jsonString)
-                                    Log.d("result:", objects.toString())
-
-                                    val polyLine = parseJSON(objects)
-
-                                    runOnUiThread(object : Runnable {
-                                        override fun run() {
-                                            val linePoints : ArrayList<TMapPoint> = polyLine.getLinePoint()
-                                            markerIdList.clear()
-
-                                            var i = 0
-                                            mapView.removeAllMarkerItem()
-
-                                            for (p : TMapPoint in linePoints) {
-                                                val markerItem = TMapMarkerItem()
-                                                markerItem.tMapPoint = p
-
-                                                val id = "i" + i++
-                                                Log.d("id", id)
-                                                markerItem.id = id
-
-                                                mapView.addMarkerItem(id, markerItem)
-
-                                                markerIdList.add(id)
-                                            }
-
-                                            mapView.addTMapPath(polyLine)
-
-
-                                            pathManager.setPolyLine(polyLine)
-
-                                            start = true
-
-                                        }
-                                    })
-                                } catch (ex : Exception) {
-                                    Log.d("EXC", ex.message)
-                                }
-
-                            }
-
-                            override fun onApiFailed() {
-                                Toast.makeText(this@MainActivity, "요청실패", Toast.LENGTH_SHORT).show()
-                            }
-                        })
-                        routeApi.start()
-                    }
-                    setTrackingMode()
-                    setSelectionMode(false)
-                }
-
-
-
-                Toast.makeText(this, "길 안내를 시작합니다.", Toast.LENGTH_SHORT).show()
-                // always compass mode
-                mapView.setOnTouchListener { v, event ->
-                    mapView.setCompassMode(true)
-                    true
-                }
-
-                moveToCurrentLocation()
-
-                Log.d("Start", "$start")
-
-                timer = Timer(true)
-                timerTask = object : TimerTask() {
-                    override fun run() {
-                        updateDirection()
-                    }
-                }
-                timer.schedule(timerTask, 300, 1)
-
-
-
-            } catch (ex : Exception) {
-                Log.d("EXC", ex.message)
-                setNavigationMode(false)
-            }
-        } else {
-            try {
-                timer.cancel()
-            } catch (e : Exception){
-                Log.d("error", "${e.message}")
-            }
-        }
-    }
 
     private fun moveToCurrentLocation() {
         try{
@@ -331,23 +219,25 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
         try {
 
             nearestPoint = pathManager.nearestPoint
-            Log.d("nearest:", "" + pathManager.getNearestIndex() + pathManager.nearestPoint);
-//            double distance = nearestVector.getDistance();
+            //Log.d("nearest:", "" + pathManager.getNearestIndex() + pathManager.nearestPoint);
+            //double distance = nearestVector.getDistance();
             val currentLocation = gpsManager.getCurrentLocation()
-            val nearestLocation =
-                Location(LocationManager.GPS_PROVIDER)
+            val nearestLocation = Location(LocationManager.GPS_PROVIDER)
             nearestLocation.longitude = nearestPoint!!.longitude
             nearestLocation.latitude = nearestPoint.latitude
             val distance: Float =
-                LocationUtils().distanceBetween(currentLocation!!, nearestLocation)
+                LocationUtils().distanceBetween(currentLocation, nearestLocation)
 
-                       Log.d("distance:", "" + distance);
+            //Log.d("distance:", "" + distance);
+
             if (distance < distThreshold) {
-                val nearestIndex : Int? = pathManager.nearestIndex
+                val nearestIndex : Int = pathManager.nearestIndex
+
                 // remove nearest marker and marker id
-                val targetMarkerId = markerIdList[nearestIndex!!]
+                val targetMarkerId = markerIdList[nearestIndex]
                 mapView.removeMarkerItem(targetMarkerId)
                 markerIdList.removeAt(nearestIndex)
+
                 if (pathManager.hasNext()) { // Path has next point
 
                     nearestPoint = pathManager.nearestPoint
@@ -366,6 +256,180 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
         }
     }
 
+
+
+    private fun setSelectionMode(isSelectionMode : Boolean) {
+        this.selectionMode = isSelectionMode
+
+        if (isSelectionMode) {
+            toolbar.setTitle("도착지를 설정하세요")
+
+            mapView.setOnLongClickListenerCallback(object : TMapView.OnLongClickListenerCallback {
+                override fun onLongPressEvent(
+                    p0: ArrayList<TMapMarkerItem>?,
+                    p1: ArrayList<TMapPOIItem>?,
+                    tMapPoint: TMapPoint
+                ) {
+                    val builder = AlertDialog.Builder(this@MainActivity)
+                        .setTitle("안내")
+                        .setMessage("도착지로 설정하시겠습니까?")
+                        .setPositiveButton("예", object : DialogInterface.OnClickListener {
+                            override fun onClick(dialog: DialogInterface?, which: Int) {
+                                setDestination(tMapPoint)
+
+                                // turn off selection mode
+                                setSelectionMode(false);
+
+                                //getRoute(tMapPoint)
+
+                            }
+                        })
+                        .setNegativeButton("아니오", null).show()
+                }
+            })
+        } else {
+            mapView.setOnLongClickListenerCallback(null)
+        }
+    }
+
+
+    private fun setNavigationMode(isNavigationMode: Boolean) {
+        this.navigationMode = isNavigationMode
+
+        if (isNavigationMode) {
+            try {
+                if (destination == null) {
+                    Toast.makeText(this, "먼저 도착지를 선택하세요.", Toast.LENGTH_SHORT).show()
+                    setNavigationMode(false)
+                    setSelectionMode(true)
+                    return
+                }
+                val mapData = TMapData()
+
+
+                //val currentLocation = Current_Location
+                val currentLocation = gpsManager.currentLocation
+                val startPoint = TMapPoint(currentLocation!!.latitude, currentLocation.longitude)
+                //
+
+                val endpoint = destination
+                //getRoute(endpoint!!)
+
+
+                val routeApi =
+                    RouteApi(this, startPoint, endpoint!!, object : RouteApi.EventListener {
+                        override fun onApiResult(jsonString: String) {
+                            Toast.makeText(this@MainActivity, "요청성공", Toast.LENGTH_SHORT).show()
+                            try {
+                                val objects: JSONObject = JSONObject(jsonString)
+                                Log.d("result:", objects.toString())
+
+                                val polyLine = parseJSON(objects)
+
+                                runOnUiThread(object : Runnable {
+                                    override fun run() {
+                                        val linePoints: ArrayList<TMapPoint> =
+                                            polyLine.getLinePoint()
+                                        markerIdList.clear()
+
+                                        var i = 0
+                                        mapView.removeAllMarkerItem()
+
+                                        for (p: TMapPoint in linePoints) {
+                                            val markerItem = TMapMarkerItem()
+                                            markerItem.tMapPoint = p
+
+                                            val id = "i" + i++
+                                            Log.d("id", id)
+                                            markerItem.id = id
+
+                                            mapView.addMarkerItem(id, markerItem)
+
+                                            markerIdList.add(id)
+                                        }
+
+                                        mapView.addTMapPath(polyLine)
+
+
+                                        pathManager.setPolyLine(polyLine)
+
+                                        timer()
+
+                                    }
+                                })
+                            } catch (ex: Exception) {
+                                Log.d("EXC", ex.message)
+                            }
+
+                        }
+
+                        override fun onApiFailed() {
+                            Toast.makeText(this@MainActivity, "요청실패", Toast.LENGTH_SHORT).show()
+                        }
+                    })
+                routeApi.start()
+
+                setTrackingMode()
+                setSelectionMode(false)
+                mapView.setUserScrollZoomEnable(true);
+                mapView.setCompassMode(true)
+
+
+
+
+                Toast.makeText(this, "길 안내를 시작합니다.", Toast.LENGTH_SHORT).show()
+                // always compass mode
+                mapView.setOnTouchListener { v, event ->
+                    mapView.setCompassMode(true)
+                    true
+                }
+
+                moveToCurrentLocation()
+
+                Log.d("Start", "$start")
+
+
+
+                //timer()
+
+
+            } catch (ex: Exception) {
+                Log.d("EXC", ex.message)
+                setNavigationMode(false)
+            } finally {
+                //btnPath.visibility = View.VISIBLE
+            }
+
+        } else {
+
+            mapView.setUserScrollZoomEnable(false);
+            mapView.setCompassMode(false);
+            mapView.setOnTouchListener(null)
+
+            mapView.removeTMapPath();
+            mapView.removeAllMarkerItem();
+
+            if (oldMarker != null) {
+                mapView.addMarkerItem("도착지", oldMarker);
+            }
+
+            try {
+                timer.cancel()
+            } catch (e: Exception) {
+                Log.d("error", "${e.message}")
+            }
+        }
+    }
+
+    private fun timer() {
+        timer = Timer(true)
+        timerTask = object : TimerTask() {
+            override fun run() {
+                updateDirection()
+            }
+        }
+        timer.schedule(timerTask, 300, 1)
+    }
 
     private fun getRoute(endPoint: TMapPoint){
 
@@ -447,116 +511,6 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
 
     }
 
-    /////////////////////////////////////////////////////////////////////////////////////////////
-
-    fun ClickDestination() {
-        Toast.makeText(this@MainActivity, "원하시는 도착 지점을 터치한 후 길안내 시작버튼을 눌러주세요", Toast.LENGTH_SHORT).show()
-
-        mapView.setOnClickListenerCallBack(object : TMapView.OnClickListenerCallback {
-            override fun onPressEvent(
-                p0: java.util.ArrayList<TMapMarkerItem>?,
-                p1: java.util.ArrayList<TMapPOIItem>?,
-                tMapPoint: TMapPoint,
-                p3: PointF?
-            ): Boolean {
-                val tMapData = TMapData()
-                tMapData.convertGpsToAddress(tMapPoint.latitude , tMapPoint.longitude, object : TMapData.ConvertGPSToAddressListenerCallback {
-                    override fun onConvertToGPSToAddress(strAddress: String) {
-                        Address = strAddress
-                        LogManager.printLog("선택한 위치의 주소는 $strAddress")
-                    }
-                })
-                Toast.makeText(this@MainActivity, "선택하신 위치의 주소는 $Address 입니다", Toast.LENGTH_SHORT).show()
-
-                return false
-            }
-
-            override fun onPressUpEvent(
-                p0: java.util.ArrayList<TMapMarkerItem>?,
-                p1: java.util.ArrayList<TMapPOIItem>?,
-                tMapPoint: TMapPoint?,
-                p3: PointF?
-            ): Boolean {
-                Destination_Point = tMapPoint
-
-                return false
-            }
-        })
-    }
-
-    fun SearchDestination() {
-        val builder =  AlertDialog.Builder(this)
-        builder.setTitle("POI 통합 검색")
-
-        val input = EditText(this)
-        builder.setView(input)
-
-        builder.setPositiveButton("확인", object : DialogInterface.OnClickListener {
-            override fun onClick(dialog: DialogInterface?, which: Int) {
-                val strData = input.text.toString()
-                val tMapData = TMapData()
-
-                tMapData.findAllPOI(strData, object : TMapData.FindAllPOIListenerCallback {
-                    override fun onFindAllPOI(poiItem: java.util.ArrayList<TMapPOIItem>) {
-                        for(i in 0 until poiItem.size) {
-                            val item : TMapPOIItem = poiItem.get(i)
-                            LogManager.printLog("POI NAME : ${item.poiName.toString()} , " +
-                                    "Address : ${item.poiAddress.replace("null","")} , " +
-                                    "Point ${item.poiPoint.toString()}")
-                            Address = item.poiAddress
-                            Destination_Point = item.poiPoint
-
-                        }
-                    }
-                })
-            }
-        })
-        Toast.makeText(this, "입력하신 주소는 $Address 입니다.", Toast.LENGTH_SHORT).show()
-        builder.setNegativeButton("취소", object : DialogInterface.OnClickListener{
-            override fun onClick(dialog: DialogInterface?, which: Int) {
-                dialog?.cancel()
-            }
-        })
-        builder.show()
-    }
-
-    fun StartGuidance() {
-        mapView.removeTMapPath()
-
-        //setTrackingMode()
-
-        val point1 = mapView.locationPoint
-        val point2 = Destination_Point
-
-        val tMapData = TMapData()
-
-        tMapData.findPathDataWithType(TMapData.TMapPathType.PEDESTRIAN_PATH, point1, point2, object : TMapData.FindPathDataListenerCallback{
-            override fun onFindPathData(polyLine: TMapPolyLine) {
-                polyLine.lineColor = Color.RED
-                mapView.addTMapPath(polyLine)
-            }
-        })
-
-        val start : Bitmap = BitmapFactory.decodeResource(this.resources , R.drawable.poi_start)
-        val end : Bitmap = BitmapFactory.decodeResource(this.resources , R.drawable.poi_end)
-        mapView.setTMapPathIcon(start, end)
-        mapView.zoomToTMapPoint(point1, point2)
-    }
-
-    fun getLocationPoint() {
-        val point = mapView.locationPoint
-
-        val Latitude = point.latitude
-        val Longitude = point.longitude
-
-        m_Latitude = Latitude
-        m_Longitude = Longitude
-
-        LogManager.printLog("Latitude : $Latitude Longitude : $Longitude")
-        //val strResult = String.format("Latitude = %f Longitude = %f", Latitude, Longitude)
-        //Common.showAlertDialog(this, "", strResult)
-    }
-
     fun setTrackingMode() {mapView.setTrackingMode(mapView.getIsTracking())}
 
 
@@ -583,9 +537,10 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
                         val mapPoint = TMapPoint(latitude, longitude)
                         setDestination(mapPoint)
                         mapView.setCenterPoint(longitude, latitude)
+                        appendToHistoryFile(name!!, latitude, longitude)
                     }
 
-                    appendToHistoryFile(name!!, latitude!!, longitude!!)
+
                 }
                 REQUEST_HISTORY ->{
                     setNavigationMode(false)
@@ -605,6 +560,8 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
                     super.onActivityResult(requestCode, resultCode, data)
                 }
             }
+        } else {
+            super.onActivityResult(requestCode, resultCode, data)
         }
     }
 
@@ -672,20 +629,16 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        //gpsManager.start()
+    private val btnPathClicked = object : View.OnClickListener {
+        override fun onClick(v: View?) {
+            try{
+                setNavigationMode(!navigationMode)
+            } catch(e: Exception){
+                Log.d("Exception : ", e.message)
+            }
+        }
     }
 
-    override fun onPause() {
-        super.onPause()
-        //gpsManager.stop()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        //gpsManager.stop()
-    }
 
 }
 

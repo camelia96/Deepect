@@ -41,23 +41,21 @@ class SplashScreen : Activity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        var permissionToLocationAccepted = true
 
-        when (requestCode) {
-            REQUEST_USED_PERMISSION ->
-                for (result in grantResults) {
-                    if(result != PackageManager.PERMISSION_GRANTED) {
-                        //Toast.makeText(this, "권한을 허용해주세요",Toast.LENGTH_LONG).show()
-                        //requestPermission()
-                        permissionToLocationAccepted = false
-                        break
-                    }
-                }
+
+        for (result in grantResults) {
+            if(result != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "권한을 허용해주세요",Toast.LENGTH_LONG).show()
+                requestPermission()
+
+                return
+            }
         }
-        if(permissionToLocationAccepted == false){
-            finish()
-        }
+
+        skipSplashScreen()
     }
+
+
 
     private fun skipSplashScreen() {
         val handler = Handler()
