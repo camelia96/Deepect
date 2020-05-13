@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.MenuItem
 import android.view.View
+import android.view.Window
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.ActionBarDrawerToggle
@@ -52,6 +53,8 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
 
     private lateinit var timer : Timer
     private lateinit var timerTask: TimerTask
+
+    private var backPressTime : Long = 0
 
     var Start_Point : TMapPoint? = null
     var Destination_Point : TMapPoint? = null
@@ -239,10 +242,20 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
                 markerIdList.removeAt(nearestIndex)
 
                 if (pathManager.hasNext()) { // Path has next point
-
                     nearestPoint = pathManager.nearestPoint
-                } else { // Navigation Complete !!!
+                    Log.d("nearestPoint", "${nearestPoint}" )
 
+                } else { // 여기서부터 조져야돼
+
+                    val builder = AlertDialog.Builder(this@MainActivity)
+                        .setTitle("안내")
+                        .setMessage("도착하셨습니다")
+                        .setPositiveButton("확인", object : DialogInterface.OnClickListener {
+                            override fun onClick(dialog: DialogInterface?, which: Int) {
+                                setNavigationMode(false)
+                            }
+                        })
+                    //timer.cancel()
                     nearestPoint = null
                     Toast.makeText(this, "목적지에 도착하였습니다.", Toast.LENGTH_SHORT).show()
                     setNavigationMode(false)
@@ -287,6 +300,8 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
                         .setNegativeButton("아니오", null).show()
                 }
             })
+
+
         } else {
             mapView.setOnLongClickListenerCallback(null)
         }
@@ -310,11 +325,9 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
                 //val currentLocation = Current_Location
                 val currentLocation = gpsManager.currentLocation
                 val startPoint = TMapPoint(currentLocation!!.latitude, currentLocation.longitude)
-                //
 
                 val endpoint = destination
                 //getRoute(endpoint!!)
-
 
                 val routeApi =
                     RouteApi(this, startPoint, endpoint!!, object : RouteApi.EventListener {
@@ -376,7 +389,6 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
 
 
 
-
                 Toast.makeText(this, "길 안내를 시작합니다.", Toast.LENGTH_SHORT).show()
                 // always compass mode
                 mapView.setOnTouchListener { v, event ->
@@ -387,11 +399,6 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
                 moveToCurrentLocation()
 
                 Log.d("Start", "$start")
-
-
-
-                //timer()
-
 
             } catch (ex: Exception) {
                 Log.d("EXC", ex.message)
@@ -415,6 +422,18 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
 
             try {
                 timer.cancel()
+                /*val builder = AlertDialog.Builder(this@MainActivity)
+                    .setTitle("안내")
+                    .setMessage("도착하셨습니다")
+                    .setPositiveButton("확인", object : DialogInterface.OnClickListener {
+                        override fun onClick(dialog: DialogInterface?, which: Int) {
+                            setNavigationMode(false)
+                        }
+                    })*/
+                //nearestPoint = null
+                //Toast.makeText(this, "목적지에 도착하였습니다.", Toast.LENGTH_SHORT).show()
+                /*setNavigationMode(false)
+                return*/
             } catch (e: Exception) {
                 Log.d("error", "${e.message}")
             }
@@ -469,7 +488,6 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
 
                                 mapView.addTMapPath(polyLine)
 
-
                                 pathManager.setPolyLine(polyLine)
 
                             }
@@ -515,12 +533,30 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
 
 
     override fun onBackPressed() {
+
         if(drawer_layout.isDrawerOpen(GravityCompat.START)){
             drawer_layout.closeDrawer(GravityCompat.START)
+        } else if(navigationMode){
+            timer.cancel()
+            setNavigationMode(false)
+            mapView.removeMarkerItem("도착지")
+            setSelectionMode(true)
+        } else if (selectionMode) {
+
+            val currentTime = System.currentTimeMillis()
+
+            if(currentTime - backPressTime < 2000) {
+                finish()
+            }else {
+                backPressTime = currentTime
+                Toast.makeText(this, "종료하려면 뒤로가기 버튼을 누르세요.", Toast.LENGTH_SHORT).show();
+            }
+        } else if (!navigationMode && oldMarker != null){
+            mapView.removeMarkerItem("도착지")
+            destination = null
+            setSelectionMode(true)
         }
-        else{
-            super.onBackPressed()
-        }
+
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
