@@ -35,6 +35,21 @@
             android:layout_marginRight="16dp"
             android:layout_marginBottom="16dp" />
 
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+
+            android:id="@+id/btnNow"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignRight="@+id/frameMap"
+            android:layout_alignBottom="@+id/frameMap"
+            android:layout_marginStart="16dp"
+            android:layout_marginLeft="16dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginRight="16dp"
+            android:layout_marginBottom="80dp"
+             />
+
 
     </RelativeLayout>
 

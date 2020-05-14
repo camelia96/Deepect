@@ -39,7 +39,7 @@ public class PathManager {
             for (int i=0; i<points.size(); i++) {
                 TMapPoint point = points.get(i);
                 double dist = Math.pow(point.getLongitude() - currentLocation.getLongitude(), 2) + Math.pow(point.getLatitude() - currentLocation.getLatitude(), 2);
-                Log.d(String.format("dist[i]:", i), ""+dist);
+                //Log.d(String.format("dist[i]:", i), ""+dist);
 
                 if (dist < minVal) {
                     minVal = dist;
@@ -88,7 +88,12 @@ public class PathManager {
     public boolean hasNext() {
         //points.remove(0);
         points.remove(nearest);
-        return (points.size() > 0) ? true : false;
+        if(points.size() > 0){
+            return true;
+        } else {
+            return false;
+        }
+        //return (points.size() > 0) ? true : false;
     }
 
     public int getNearestIndex() {

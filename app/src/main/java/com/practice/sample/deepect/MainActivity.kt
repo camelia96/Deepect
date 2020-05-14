@@ -12,6 +12,8 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.MenuItem
 import android.view.View
@@ -61,6 +63,8 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
     var Current_Location : Location? = null
 
     var start  = false
+
+    var controller : Int = 0
 
 
     private lateinit var Address : String
@@ -135,8 +139,8 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
     override fun onDestroy() {
         super.onDestroy()
         try{
-            gpsManager.stop()
             timer.cancel()
+            gpsManager.stop()
         } catch(e : Exception){
 
         }
@@ -176,6 +180,7 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
         })
 
         btnPath.setOnClickListener(btnPathClicked)
+        btnNow.setOnClickListener(btnNowClicked)
 
         val toggle = ActionBarDrawerToggle(
             this,
@@ -216,57 +221,67 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
 
 
     private fun updateDirection() {
-        val distThreshold = 20.0f // 20 meter
 
-        var nearestPoint: TMapPoint? = null
-        try {
+        if(controller == 1){
+            val distThreshold = 20.0f // 20 meter
 
-            nearestPoint = pathManager.nearestPoint
-            //Log.d("nearest:", "" + pathManager.getNearestIndex() + pathManager.nearestPoint);
-            //double distance = nearestVector.getDistance();
-            val currentLocation = gpsManager.getCurrentLocation()
-            val nearestLocation = Location(LocationManager.GPS_PROVIDER)
-            nearestLocation.longitude = nearestPoint!!.longitude
-            nearestLocation.latitude = nearestPoint.latitude
-            val distance: Float =
-                LocationUtils().distanceBetween(currentLocation, nearestLocation)
+            var nearestPoint: TMapPoint? = null
+            try {
 
-            //Log.d("distance:", "" + distance);
+                nearestPoint = pathManager.nearestPoint
+                Log.d("nearest:", "" + pathManager.getNearestIndex() + pathManager.nearestPoint);
+                //double distance = nearestVector.getDistance();
+                val currentLocation = gpsManager.getCurrentLocation()
+                val nearestLocation = Location(LocationManager.GPS_PROVIDER)
+                nearestLocation.longitude = nearestPoint!!.longitude
+                nearestLocation.latitude = nearestPoint.latitude
+                val distance: Float =
+                    LocationUtils().distanceBetween(currentLocation, nearestLocation)
 
-            if (distance < distThreshold) {
-                val nearestIndex : Int = pathManager.nearestIndex
+                //Log.d("distance:", "" + distance);
 
-                // remove nearest marker and marker id
-                val targetMarkerId = markerIdList[nearestIndex]
-                mapView.removeMarkerItem(targetMarkerId)
-                markerIdList.removeAt(nearestIndex)
+                if (distance < distThreshold) {
+                    val nearestIndex : Int = pathManager.nearestIndex
 
-                if (pathManager.hasNext()) { // Path has next point
-                    nearestPoint = pathManager.nearestPoint
-                    Log.d("nearestPoint", "${nearestPoint}" )
+                    // remove nearest marker and marker id
+                    val targetMarkerId = markerIdList[nearestIndex]
+                    mapView.removeMarkerItem(targetMarkerId)
+                    markerIdList.removeAt(nearestIndex)
 
-                } else { // 여기서부터 조져야돼
+                    if (pathManager.hasNext()) { // Path has next point
+                        nearestPoint = pathManager.nearestPoint
+                        Log.d("nearestPoint", "${nearestPoint}" )
 
-                    val builder = AlertDialog.Builder(this@MainActivity)
-                        .setTitle("안내")
-                        .setMessage("도착하셨습니다")
-                        .setPositiveButton("확인", object : DialogInterface.OnClickListener {
-                            override fun onClick(dialog: DialogInterface?, which: Int) {
-                                setNavigationMode(false)
-                            }
-                        })
-                    //timer.cancel()
-                    nearestPoint = null
-                    Toast.makeText(this, "목적지에 도착하였습니다.", Toast.LENGTH_SHORT).show()
-                    setNavigationMode(false)
-                    return
+                    } else { // 여기서부터 조져야돼
+                        Log.d("여기가 오냐","작동되긴해?")
+                        timer.cancel()
+                        val builder = AlertDialog.Builder(this)
+                            .setTitle("안내")
+                            .setMessage("목적지에 도착했습니다")
+                            .setPositiveButton("확인", object : DialogInterface.OnClickListener{
+                                override fun onClick(dialog: DialogInterface?, which: Int) {
+                                    nearestPoint = null
+                                    mapView.removeMarkerItem("도착지")
+                                    destination = null
+                                    oldMarker = null
+                                    setNavigationMode(!navigationMode)
+                                    setSelectionMode(true)
+                                    return
+                                }
+                            }).show()
+
+                    }
+                } else { // out of 20.0 meters
+
                 }
-            } else { // out of 20.0 meters
 
+            } catch (ex: java.lang.Exception) {
+                Log.d("Exception:", ex.message)
             }
-        } catch (ex: java.lang.Exception) {
-            Log.d("Exception:", ex.message)
+        } else {
+            Log.d("controller", "${controller}")
         }
+
     }
 
 
@@ -366,7 +381,7 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
 
                                         pathManager.setPolyLine(polyLine)
 
-                                        timer()
+                                        controller = 1
 
                                     }
                                 })
@@ -398,6 +413,9 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
 
                 moveToCurrentLocation()
 
+
+                timer()
+
                 Log.d("Start", "$start")
 
             } catch (ex: Exception) {
@@ -409,10 +427,11 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
 
         } else {
 
+            controller = 0
             mapView.setUserScrollZoomEnable(false);
             mapView.setCompassMode(false);
             mapView.setOnTouchListener(null)
-
+            setSelectionMode(true)
             mapView.removeTMapPath();
             mapView.removeAllMarkerItem();
 
@@ -422,18 +441,6 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
 
             try {
                 timer.cancel()
-                /*val builder = AlertDialog.Builder(this@MainActivity)
-                    .setTitle("안내")
-                    .setMessage("도착하셨습니다")
-                    .setPositiveButton("확인", object : DialogInterface.OnClickListener {
-                        override fun onClick(dialog: DialogInterface?, which: Int) {
-                            setNavigationMode(false)
-                        }
-                    })*/
-                //nearestPoint = null
-                //Toast.makeText(this, "목적지에 도착하였습니다.", Toast.LENGTH_SHORT).show()
-                /*setNavigationMode(false)
-                return*/
             } catch (e: Exception) {
                 Log.d("error", "${e.message}")
             }
@@ -444,10 +451,16 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
         timer = Timer(true)
         timerTask = object : TimerTask() {
             override fun run() {
-                updateDirection()
+                val mHandler = Handler(Looper.getMainLooper())
+                mHandler.postDelayed(object : Runnable{
+                    override fun run() {
+                        updateDirection()
+                    }
+                }, 0)
             }
         }
-        timer.schedule(timerTask, 300, 1)
+        timer.schedule(timerTask, 300, 500)
+
     }
 
     private fun getRoute(endPoint: TMapPoint){
@@ -540,8 +553,15 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
             timer.cancel()
             setNavigationMode(false)
             mapView.removeMarkerItem("도착지")
+            destination=null
             setSelectionMode(true)
-        } else if (selectionMode) {
+        } else if (!navigationMode && oldMarker != null){
+            mapView.removeMarkerItem("도착지")
+            destination = null
+            oldMarker = null
+            setSelectionMode(true)
+        }
+        else if (selectionMode) {
 
             val currentTime = System.currentTimeMillis()
 
@@ -551,10 +571,6 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
                 backPressTime = currentTime
                 Toast.makeText(this, "종료하려면 뒤로가기 버튼을 누르세요.", Toast.LENGTH_SHORT).show();
             }
-        } else if (!navigationMode && oldMarker != null){
-            mapView.removeMarkerItem("도착지")
-            destination = null
-            setSelectionMode(true)
         }
 
     }
@@ -669,11 +685,19 @@ class MainActivity : AppCompatActivity(),  NavigationView.OnNavigationItemSelect
         override fun onClick(v: View?) {
             try{
                 setNavigationMode(!navigationMode)
+
             } catch(e: Exception){
                 Log.d("Exception : ", e.message)
             }
         }
     }
+
+    private val btnNowClicked = object : View.OnClickListener {
+        override fun onClick(v: View?) {
+                    moveToCurrentLocation()
+            }
+    }
+
 
 
 }
